@@ -1,0 +1,6 @@
+include README.md
+recursive-include climweb-wdqms *.html
+recursive-include climweb-wdqms *.py
+recursive-include climweb-wdqms/static *
+recursive-include climweb-wdqms/templates *
+recursive-include climweb-wdqms/locale *.po *.mo
