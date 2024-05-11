@@ -77,6 +77,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "sandbox.urls"
 
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
