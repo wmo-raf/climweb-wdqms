@@ -61,7 +61,7 @@ def download_transmission_rate_csv(date, period, variable, centers, baseline, co
         df_filtered = df_filtered.loc[max_rate_indices]
         df_filtered.replace([np.inf, -np.inf], 0, inplace=True)
 
-        # os.remove(file_name)
+        os.remove(file_name)
         return df_filtered
 
     else:
@@ -175,7 +175,7 @@ class Command(BaseCommand):
                 return  # Exit the command
             
         if datetime.strptime(start_date, "%Y-%m-%d") > datetime.strptime(end_date, "%Y-%m-%d"):
-            self.stderr.write(self.style.ERROR(f"'Start date' cannot come earlier than 'End date'"))
+            self.stderr.write(self.style.ERROR(f"'End date' cannot come earlier than 'Start date'"))
             return  # Exit the command
 
 
