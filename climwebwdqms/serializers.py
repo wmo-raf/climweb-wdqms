@@ -16,5 +16,5 @@ class StationSerializer(serializers.ModelSerializer):
 class TransmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transmission
-        fields = ["received_date", "station", "variable", "received_rate"]
+        fields = ["received_date", "station", "variable", "received_rate", "recieved", "expected"]
 

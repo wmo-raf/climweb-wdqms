@@ -50,15 +50,17 @@ def download_transmission_rate_csv(date, period, variable, centers, baseline, co
         
         # Load the CSV data into a DataFrame
         df = pd.read_csv(file_name)
-        # Group by 'name' and select the row with the highest 'received rate'
-        max_rate_indices = df.groupby('wigosid')['#received'].idxmax()
-        df_filtered = df.loc[max_rate_indices]
-        df_filtered = df_filtered[df_filtered['country code'] == country_code]
+       
+        df_filtered = df[df['country code'] == country_code]
+        df_filtered = df[df['wigosid'] == '0-20000-0-63671']
 
         df_filtered['received_rate'] = (df_filtered['#received'] / df_filtered['#expected']) * 100
+         # Group by 'name' and select the row with the highest 'received rate'
+        max_rate_indices = df_filtered.groupby('wigosid')['received_rate'].idxmax()
+        df_filtered = df_filtered.loc[max_rate_indices]
         df_filtered.replace([np.inf, -np.inf], 0, inplace=True)
 
-        os.remove(file_name)
+        # os.remove(file_name)
         return df_filtered
 
     else:
@@ -74,14 +76,8 @@ def generate_date_range(start_date, end_date):
 
 
 def ingest_transmission_rates(start_date, end_date,variable, periods, centers, country_code):
-    # start_date = "2024-01-01" # TODO: USER DEFINED
-    # end_date = "2024-05-01" # TODO: USER DEFINED
     dates = generate_date_range(start_date, end_date)
-    # periods = ["00", "06", "12", "18"] # TODO: USER DEFINED
-    # variable = "pressure" # TODO: USER DEFINED
-    # centers = ["DWD", "ECMWF", "JMA", "NCEP"] # TODO: USER DEFINED
     baseline = "OSCAR" 
-    # country_code = "KEN" # TODO: USER DEFINED
 
     for date in dates:
         for period in periods:
@@ -112,6 +108,8 @@ def ingest_transmission_rates(start_date, end_date,variable, periods, centers, c
                 if Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).exists():
                     transmission_data = {
                         'received_rate':row['received_rate'],
+                        'received':row['#received'],
+                        'expected':row['#expected'],
                     }
                     Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).update(**transmission_data)
 
@@ -121,6 +119,8 @@ def ingest_transmission_rates(start_date, end_date,variable, periods, centers, c
                         station=station,
                         variable=row['variable'],
                         received_rate=row['received_rate'],
+                        received=row['#received'],
+                        expected=row['#expected'],
                         received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')
                     ))
 
@@ -179,7 +179,6 @@ class Command(BaseCommand):
                 return  # Exit the command
 
             # Split the value by comma and append to list_arg
-        print(periods)
         if periods:
             for period in periods:
                 if period not in period_ls:
@@ -195,14 +194,14 @@ class Command(BaseCommand):
 
         if start_date and end_date and variable and centers and periods:
             for country in Country.objects.all():
-                # loop through all countries in boundary manager for data fetching and ingestion
-                self.stdout.write(f"FETCH: Requesting data for {country.country.name}")
+                if Country.objects.count() > 0:
+                    # loop through all countries in boundary manager for data fetching and ingestion
+                    self.stdout.write(f"FETCH: Requesting data for {country.country.name}")
 
-                ingest_transmission_rates(start_date, end_date, variable, periods, centers, country.country.alpha3)
-        
-        # else:
-        #     self.stderr.write(self.style.ERROR("Missing arguements for start_date, end_date, centers, variables, periods"))
-        #     return
+                    ingest_transmission_rates(start_date, end_date, variable, periods, centers, country.country.alpha3)
+                else:
+                    self.stderr.write(self.style.ERROR(f"Please select atleast one country in admin boundary settings first"))
+
 
         
 

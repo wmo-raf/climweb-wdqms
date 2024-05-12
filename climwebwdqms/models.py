@@ -22,7 +22,9 @@ class Transmission(models.Model):
 
     station = models.ForeignKey("Station", on_delete=models.CASCADE)
     variable = models.CharField(_("Transmission Variable"), max_length=50 )
-    received_rate = models.DecimalField(_("Percentage received"), max_digits=5, decimal_places=2)
+    received = models.IntegerField(_("Transmissions received"), null=True)
+    expected = models.IntegerField(_("Transmissions expected"), null=True)
+    received_rate = models.DecimalField(_("Transmission Rate"), max_digits=5, decimal_places=2)
     received_date = models.DateTimeField(_("Date Time Received"), auto_now=False, auto_now_add=False)
 
 
