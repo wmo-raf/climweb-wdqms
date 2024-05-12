@@ -9,7 +9,7 @@ import numpy as np
 
 import requests
 from django.core.management.base import BaseCommand
-from climwebwdqms.models import Station, Transmission
+from climweb_wdqms.models import Station, Transmission
 from adminboundarymanager.models import Country
 
 logger = logging.getLogger(__name__)
@@ -172,6 +172,11 @@ class Command(BaseCommand):
             if not date_pattern.match(end_date):
                 self.stderr.write(self.style.ERROR(f"Invalid format for 'end_date'. Use YYYY-MM-DD format."))
                 return  # Exit the command
+            
+        if datetime.strptime(start_date, "%Y-%m-%d") > datetime.strptime(end_date, "%Y-%m-%d"):
+            self.stderr.write(self.style.ERROR(f"'Start date' cannot come earlier than 'End date'"))
+            return  # Exit the command
+
 
         if variable:
             if variable not in variables_ls:
@@ -190,6 +195,8 @@ class Command(BaseCommand):
                 if center.upper() not in center_ls:
                     self.stderr.write(self.style.ERROR(f"'{center}' is not a valid option. Choices are DWD ECMWF JMA NCEP"))
                     return  # Exit the command
+                
+            
 
 
         if start_date and end_date and variable and centers and periods:

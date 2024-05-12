@@ -36,7 +36,7 @@ if os.path.isfile(os.path.join(os.path.dirname(BASE_DIR), '.env')):
 
 INSTALLED_APPS = [
     "home",
-    "climwebwdqms",
+    "climweb_wdqms",
     "search",
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",

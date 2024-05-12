@@ -2,10 +2,10 @@ from django.shortcuts import render
 import pytz
 
 from rest_framework.generics import ListAPIView
-from climwebwdqms.models import Transmission, Station
+from climweb_wdqms.models import Transmission, Station
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
-from climwebwdqms.serializers import StationSerializer
+from climweb_wdqms.serializers import StationSerializer
 from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response

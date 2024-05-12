@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from climwebwdqms.models import Transmission, Station
+from climweb_wdqms.models import Transmission, Station
 
 
 class StationSerializer(serializers.ModelSerializer):
