@@ -52,8 +52,9 @@ def download_transmission_rate_csv(date, period, variable, centers, baseline, co
         df = pd.read_csv(file_name)
        
         df_filtered = df[df['country code'] == country_code]
-        df_filtered = df[df['wigosid'] == '0-20000-0-63671']
 
+        # Assuming df_filtered is your DataFrame
+        df_filtered = df_filtered.copy()
         df_filtered['received_rate'] = (df_filtered['#received'] / df_filtered['#expected']) * 100
          # Group by 'name' and select the row with the highest 'received rate'
         max_rate_indices = df_filtered.groupby('wigosid')['received_rate'].idxmax()
