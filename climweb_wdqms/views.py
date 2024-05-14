@@ -1,5 +1,6 @@
 from django.shortcuts import render
 import pytz
+import json
 
 from rest_framework.generics import ListAPIView
 from climweb_wdqms.models import Transmission, Station
@@ -10,7 +11,9 @@ from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models.functions import ExtractHour,ExtractMonth,ExtractYear
-from django.db.models import Avg
+from django.db.models import Avg, Func, F
+from django.db.models.functions import TruncMonth
+
 
 
 def validate_params(query_params, supported_params):
@@ -26,7 +29,7 @@ def validate_params(query_params, supported_params):
 
     # Check if the 'param' parameter is present in the request
     for q in supported_params:
-        if q not in query_params:
+        if q not in query_params and q != 'station':
             error_message = {'error': f'Parameter "{q}" is required.'}
             # return Response(error_message, status=400)  # Return a 400 Bad Request response
 
@@ -56,8 +59,6 @@ class SynopTransmissionView(APIView):
     filterset_fields = ["received_date", "station", "variable"]
     permission_classes = [IsAuthenticated | ReadOnly]
 
-    
-
     def get(self, request):
         
         queryset = Transmission.objects.all()
@@ -77,7 +78,7 @@ class SynopTransmissionView(APIView):
 
         result = []
 
-        if station:
+        if station is not None:
             queryset = queryset.filter(station = station)
 
         if received_date:
@@ -85,7 +86,7 @@ class SynopTransmissionView(APIView):
 
             # check the frequencies 
             if frequency == 'monthly_synop':
-                queryset = queryset.filter(received_date__month = received_date.month, variable=variable).order_by('received_date__hour')
+                queryset = queryset.filter(received_date__year = received_date.year, received_date__month = received_date.month, variable=variable).order_by('received_date__hour')
             
             elif frequency == 'daily_synop':
                 queryset = queryset.filter(received_date__date=received_date.date(), variable=variable).order_by('received_date__hour')
@@ -139,7 +140,7 @@ class MonthlyTransmissionView(APIView):
         year = request.query_params.get('year', latest_year[0] if len(latest_year) else None)
         variable = request.query_params.get('variable', 'pressure')
 
-        if station:
+        if station is not None:
             queryset = queryset.filter(station = station)
 
         # Extract the month from the received_date and annotate the queryset
@@ -193,8 +194,10 @@ class YearlyTransmissionView(APIView):
         variable = request.query_params.get('variable', 'pressure')
         
 
-        if station:
+        if station is not None:
             queryset = queryset.filter(station = station)
+
+        queryset = queryset.filter(variable=variable)
 
         # Extract the month from the received_date and annotate the queryset
         queryset = queryset.annotate(
@@ -220,3 +223,53 @@ class YearlyTransmissionView(APIView):
         ]
 
         return Response(result)
+
+
+
+class AverageMonthlyReceivedRateGeom(APIView):
+    def get(self, request):
+        month = request.query_params.get('month', None)
+        year = request.query_params.get('year', None)
+        variable = request.query_params.get('variable', None)
+
+        # Aggregate data by month and calculate average received rate
+        monthly_data = Transmission.objects.filter(received_date__month=month,
+            received_date__year=year, variable=variable
+        ).annotate(
+            month=TruncMonth('received_date')
+        ).values(
+            'month','station__name', 'variable'
+        ).annotate(
+            average_received_rate=Avg('received_rate'),
+            station_geometry=F('station__geom'),  # Access the geometry field
+
+        )
+
+        # Convert queryset to list of dictionaries
+        monthly_data_list = list(monthly_data)
+
+        # Create GeoJSON-like structure
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": []
+        }
+
+        for data in monthly_data_list:
+            # Convert Decimal to float for JSON serialization
+            average_received_rate = float(data['average_received_rate']) if data['average_received_rate'] is not None else None
+
+            geometry = json.loads(data['station_geometry'].geojson)
+
+            feature = {
+                "type": "Feature",
+                "properties": {
+                    "station_name": data['station__name'],
+                    "month": data['month'].strftime('%Y-%m'),
+                    "variable": data['variable'],
+                    "average_received_rate": average_received_rate
+                },
+                "geometry": geometry
+            }
+            feature_collection["features"].append(feature)
+
+        return Response(feature_collection)

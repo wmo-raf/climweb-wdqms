@@ -16,6 +16,7 @@ class Station(models.Model):
         return f'{self.name}-{self.wigos_id}'
     
     
+    
         
 # Create your models here.
 class Transmission(models.Model):
@@ -35,5 +36,6 @@ class Transmission(models.Model):
 
     def __str__(self):
         return f'{self.station} - {self.variable} - {self.received_date}'
+    
 
 
