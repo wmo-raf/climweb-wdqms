@@ -174,6 +174,9 @@ class Command(BaseCommand):
             if not date_pattern.match(start_date):
                 self.stderr.write(self.style.ERROR(f"Invalid format for 'start_date'. Use YYYY-MM-DD format."))
                 return  # Exit the command
+        else:
+            # usually when there is no data in the database 
+            start_date = "2019-01-01" # earliest date ever on wdqms
 
         if end_date is not None:  
             if not date_pattern.match(end_date):
