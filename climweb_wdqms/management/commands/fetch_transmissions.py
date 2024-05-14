@@ -156,7 +156,17 @@ class Command(BaseCommand):
         latest_date = Transmission.objects.values_list('received_date__date').order_by('received_date__date').last()
         yesterday = datetime.now().date() - timedelta(days=1)
 
-        start_date = kwargs['start_date'] if kwargs['start_date'] is not None else latest_date[0].strftime("%Y-%m-%d")
+        if kwargs['start_date'] is not None:
+            # check first cli params
+            start_date = kwargs['start_date']
+        elif latest_date:
+            # check latest date in db 
+            start_date = latest_date[0].strftime("%Y-%m-%d")
+        else:
+            # use earliest date in wdqms. usually means the db is empty 
+            start_date = "2019-01-01" 
+
+
         end_date = kwargs['end_date'] if kwargs['end_date'] is not None else yesterday.strftime("%Y-%m-%d")
         periods = kwargs['periods'] if kwargs['periods'] is not None else ["00", "06", "12", "18"]
         centers = kwargs['centers'] if kwargs['centers'] is not None else ["DWD", "ECMWF", "JMA", "NCEP"]
@@ -174,9 +184,6 @@ class Command(BaseCommand):
             if not date_pattern.match(start_date):
                 self.stderr.write(self.style.ERROR(f"Invalid format for 'start_date'. Use YYYY-MM-DD format."))
                 return  # Exit the command
-        else:
-            # usually when there is no data in the database 
-            start_date = "2019-01-01" # earliest date ever on wdqms
 
         if end_date is not None:  
             if not date_pattern.match(end_date):
