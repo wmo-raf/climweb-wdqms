@@ -238,7 +238,7 @@ class AverageMonthlyReceivedRateGeom(APIView):
         ).annotate(
             month=TruncMonth('received_date')
         ).values(
-            'month','station__name', 'variable'
+            'month','station__name', 'variable', 'station__wigos_id'
         ).annotate(
             average_received_rate=Avg('received_rate'),
             station_geometry=F('station__geom'),  # Access the geometry field
@@ -263,7 +263,8 @@ class AverageMonthlyReceivedRateGeom(APIView):
             feature = {
                 "type": "Feature",
                 "properties": {
-                    "station_name": data['station__name'],
+                    "name": data['station__name'],
+                    "wigos_id": data['station__wigos_id'],
                     "month": data['month'].strftime('%Y-%m'),
                     "variable": data['variable'],
                     "average_received_rate": average_received_rate
