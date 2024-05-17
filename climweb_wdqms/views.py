@@ -13,6 +13,8 @@ from rest_framework.response import Response
 from django.db.models.functions import ExtractHour,ExtractMonth,ExtractYear
 from django.db.models import Avg, Func, F
 from django.db.models.functions import TruncMonth
+from django.utils.timezone import utc
+
 
 
 
@@ -95,7 +97,7 @@ class SynopTransmissionView(APIView):
 
         # Extract the hour from the received_date and annotate the queryset
         queryset = queryset.annotate(
-            synop_hour=ExtractHour('received_date')
+            synop_hour=ExtractHour('received_date', tzinfo=utc)
         )
 
         # Aggregate the queryset to calculate the average received_rate for each synoptic hour
