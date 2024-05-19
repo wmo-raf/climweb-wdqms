@@ -76,62 +76,62 @@ def generate_date_range(start_date, end_date):
     return dates
 
 
-def ingest_transmission_rates(start_date, end_date,variables, periods, centers, country_code):
+def ingest_transmission_rates(start_date, end_date, variable, periods, centers, country_code):
     dates = generate_date_range(start_date, end_date)
     baseline = "OSCAR" 
 
-    for variable in variables:
-        print(f"INGEST: Ingesting {variable.upper()}...")
-        variable = variable.lower()
-        for date in dates:
-            for period in periods:
-                trans_rates = download_transmission_rate_csv(date, period, variable, centers, baseline, country_code)
+    print(f"INGEST: Ingesting {variable.upper()}...")
+    variable = variable.lower()
 
-                print(f"INGEST: Starting data ingestion for {date}-{period}")
+    for date in dates:
+        for period in periods:
+            trans_rates = download_transmission_rate_csv(date, period, variable, centers, baseline, country_code)
 
-                # Create or update stations
-                stations_to_create = []
-                for _, row in trans_rates.iterrows():
-                    station_data = {
-                        'wigos_id': row['wigosid'],
-                        'name': row['name'],
-                        'geom':Point(row['longitude'], row['latitude']),
-                        'in_oscar':row['in OSCAR']
-                    }
-                    
-                    stations_to_create.append(Station(**station_data))
+            print(f"INGEST: Starting data ingestion for {date}-{period}")
 
-
-                # Bulk create new stations
-                Station.objects.bulk_create(stations_to_create, ignore_conflicts=True)
-
-                # Create or update transmissions
-                transmissions_to_create = []
-                for _, row in trans_rates.iterrows():
-
-                    if Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).exists():
-                        transmission_data = {
-                            'received_rate':row['received_rate'],
-                            'received':row['#received'],
-                            'expected':row['#expected'],
-                        }
-                        Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).update(**transmission_data)
-
-                    else:
-                        station = Station.objects.get(wigos_id=row['wigosid'])
-                        transmissions_to_create.append(Transmission(
-                            station=station,
-                            variable=row['variable'],
-                            received_rate=row['received_rate'],
-                            received=row['#received'],
-                            expected=row['#expected'],
-                            received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')
-                        ))
-
-                # Bulk create new transmissions
-                Transmission.objects.bulk_create(transmissions_to_create, ignore_conflicts=True)
+            # Create or update stations
+            stations_to_create = []
+            for _, row in trans_rates.iterrows():
+                station_data = {
+                    'wigos_id': row['wigosid'],
+                    'name': row['name'],
+                    'geom':Point(row['longitude'], row['latitude']),
+                    'in_oscar':row['in OSCAR']
+                }
                 
-                print(f"INGEST: Completed ingestion for {date}-{period}")
+                stations_to_create.append(Station(**station_data))
+
+
+            # Bulk create new stations
+            Station.objects.bulk_create(stations_to_create, ignore_conflicts=True)
+
+            # Create or update transmissions
+            transmissions_to_create = []
+            for _, row in trans_rates.iterrows():
+
+                if Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).exists():
+                    transmission_data = {
+                        'received_rate':row['received_rate'],
+                        'received':row['#received'],
+                        'expected':row['#expected'],
+                    }
+                    Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).update(**transmission_data)
+
+                else:
+                    station = Station.objects.get(wigos_id=row['wigosid'])
+                    transmissions_to_create.append(Transmission(
+                        station=station,
+                        variable=row['variable'],
+                        received_rate=row['received_rate'],
+                        received=row['#received'],
+                        expected=row['#expected'],
+                        received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')
+                    ))
+
+            # Bulk create new transmissions
+            Transmission.objects.bulk_create(transmissions_to_create, ignore_conflicts=True)
+            
+            print(f"INGEST: Completed ingestion for {date}-{period}")
 
 
 
@@ -144,7 +144,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('-s', '--start_date', type=str, help='Start date of transmission. format YYYY-MM-DD') 
         parser.add_argument('-e', '--end_date', type=str, help='End date of transmission. format YYYY-MM-DD') 
-        parser.add_argument('-var', '--variables', nargs='+', type=str, help='List of variables e.g pressure,temperature, humidity, meridional_wind, zonal_wind') 
+        parser.add_argument('-var', '--variable', type=str, help='Accepted variables are e.g pressure,temperature, humidity, meridional_wind, zonal_wind') 
         parser.add_argument('-p', '--periods', nargs='+', type=str, help='List of synoptic hours e.g 00, 06, 12, 18') 
         parser.add_argument('-c', '--centers', nargs='+', type=str, help='List of monitoring centers e.g DWD, ECMWF, JMA, NCEP') 
 
@@ -153,9 +153,33 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
 
-        latest_date = Transmission.objects.values_list('received_date__date').order_by('received_date__date').last()
+        transmissions = Transmission.objects.all()
         yesterday = datetime.now().date() - timedelta(days=1)
 
+
+        latest_date = None
+        end_date = kwargs['end_date'] if kwargs['end_date'] is not None else yesterday.strftime("%Y-%m-%d")
+        periods = kwargs['periods'] if kwargs['periods'] is not None else ["00", "06", "12", "18"]
+        centers = kwargs['centers'] if kwargs['centers'] is not None else ["DWD", "ECMWF", "JMA", "NCEP"]
+        variable = kwargs['variable'] if kwargs['variable'] is not None else ['pressure', 'temperature', 'humidity', 'meridional_wind' , 'zonal_wind']
+
+        variables_ls = ['pressure', 'temperature', 'humidity', 'meridional_wind' , 'zonal_wind']
+        period_ls = ["00", "06", "12", "18"]
+        center_ls = ["DWD", "ECMWF", "JMA", "NCEP"]
+
+
+        # Regular expression to match YYYY-MM-DD format
+        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+        if variable is not None:
+            if variable not in variables_ls:
+                self.stderr.write(self.style.ERROR(f"Accepeted variables include pressure,temperature, humidity, meridional_wind, zonal_wind"))
+                return  # Exit the command
+            else:
+                # check latest date for variable
+                latest_date = transmissions.filter(variable=variable).values_list('received_date__date').order_by('received_date__date').last()
+
+     
         if kwargs['start_date'] is not None:
             # check first cli params
             start_date = kwargs['start_date']
@@ -164,20 +188,7 @@ class Command(BaseCommand):
             start_date = latest_date[0].strftime("%Y-%m-%d")
         else:
             # use earliest date in wdqms. usually means the db is empty 
-            start_date = "2019-01-01" 
-
-
-        end_date = kwargs['end_date'] if kwargs['end_date'] is not None else yesterday.strftime("%Y-%m-%d")
-        periods = kwargs['periods'] if kwargs['periods'] is not None else ["00", "06", "12", "18"]
-        centers = kwargs['centers'] if kwargs['centers'] is not None else ["DWD", "ECMWF", "JMA", "NCEP"]
-        variables = kwargs['variables'] if kwargs['variables'] is not None else ['pressure', 'temperature', 'humidity', 'meridional_wind' , 'zonal_wind']
-
-        variables_ls = ['pressure', 'temperature', 'humidity', 'meridional_wind' , 'zonal_wind']
-        period_ls = ["00", "06", "12", "18"]
-        center_ls = ["DWD", "ECMWF", "JMA", "NCEP"]
-
-        # Regular expression to match YYYY-MM-DD format
-        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+            start_date = "2023-01-01" 
 
         # Parsing the arguments manually
         if start_date is not None:
@@ -195,13 +206,7 @@ class Command(BaseCommand):
             return  # Exit the command
 
 
-        if variables is not None:
-            for variable in variables:
-                if variable not in variables_ls:
-                    self.stderr.write(self.style.ERROR(f"Allowed variables include pressure,temperature, humidity, meridional_wind, zonal_wind"))
-                    return  # Exit the command
-
-            # Split the value by comma and append to list_arg
+               # Split the value by comma and append to list_arg
         if periods is not None:
             for period in periods:
                 if period not in period_ls:
@@ -216,13 +221,13 @@ class Command(BaseCommand):
                 
             
 
-        if start_date is not None and end_date is not None and variables is not None and centers is not None and periods is not None:
+        if start_date is not None and end_date is not None and variable is not None and centers is not None and periods is not None:
             for country in Country.objects.all():
                 if Country.objects.count() > 0:
                     # loop through all countries in boundary manager for data fetching and ingestion
                     self.stdout.write(f"FETCH: Requesting data for {country.country.name}")
 
-                    ingest_transmission_rates(start_date, end_date, variables, periods, centers, country.country.alpha3)
+                    ingest_transmission_rates(start_date, end_date, variable, periods, centers, country.country.alpha3)
                 else:
                     self.stderr.write(self.style.ERROR(f"Please select atleast one country in admin boundary settings first"))
 

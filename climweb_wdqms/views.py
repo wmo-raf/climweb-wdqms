@@ -63,7 +63,7 @@ class SynopTransmissionView(APIView):
 
     def get(self, request):
         
-        queryset = Transmission.objects.all()
+        queryset = Transmission.objects.filter(received_date__year__gte = 2023)
         supported_params = ['station', 'frequency', 'received_date', 'variable']
         query_params = request.query_params
         
@@ -126,7 +126,7 @@ class MonthlyTransmissionView(APIView):
 
     def get(self, request):
 
-        queryset = Transmission.objects.all()
+        queryset = Transmission.objects.filter(received_date__year__gte = 2023)
         result = []
 
         latest_year =  queryset.values_list('received_date__year').order_by('received_date__year').last()
@@ -181,7 +181,7 @@ class YearlyTransmissionView(APIView):
 
     def get(self, request):
 
-        queryset = Transmission.objects.all()
+        queryset = Transmission.objects.filter(received_date__year__gte = 2023)
         result = []
 
         supported_params = ['station', 'variable']
