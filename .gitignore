@@ -110,3 +110,4 @@ sandbox/static
 .DS_Store
 
 *.csv
+tmp/

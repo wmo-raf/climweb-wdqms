@@ -78,7 +78,7 @@ def generate_date_range(start_date, end_date):
 
 def ingest_transmission_rates(start_date, end_date, variable, periods, centers, country_code):
     dates = generate_date_range(start_date, end_date)
-    baseline = "OSCAR" 
+    baseline = "OSCAR"
 
     print(f"INGEST: Ingesting {variable.upper()}...")
     variable = variable.lower()
@@ -92,15 +92,28 @@ def ingest_transmission_rates(start_date, end_date, variable, periods, centers, 
             # Create or update stations
             stations_to_create = []
             for _, row in trans_rates.iterrows():
+                wigos_id = row['wigosid']
                 station_data = {
-                    'wigos_id': row['wigosid'],
                     'name': row['name'],
-                    'geom':Point(row['longitude'], row['latitude']),
-                    'in_oscar':row['in OSCAR']
+                    'geom': Point(row['longitude'], row['latitude']),
+                    'in_oscar': row['in OSCAR']
                 }
                 
-                stations_to_create.append(Station(**station_data))
-
+                # Check if station exists
+                existing_station = Station.objects.filter(wigos_id=wigos_id).first()
+                if existing_station:
+                    # Update existing station if there are changes
+                    update_needed = False
+                    if (existing_station.name != station_data['name'] or 
+                        existing_station.geom != station_data['geom'] or 
+                        existing_station.in_oscar != station_data['in_oscar']):
+                        for key, value in station_data.items():
+                            setattr(existing_station, key, value)
+                        existing_station.save()
+                else:
+                    # Append new station data for bulk creation
+                    station_data['wigos_id'] = wigos_id
+                    stations_to_create.append(Station(**station_data))
 
             # Bulk create new stations
             Station.objects.bulk_create(stations_to_create, ignore_conflicts=True)
@@ -108,15 +121,14 @@ def ingest_transmission_rates(start_date, end_date, variable, periods, centers, 
             # Create or update transmissions
             transmissions_to_create = []
             for _, row in trans_rates.iterrows():
-
-                if Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).exists():
+                received_date = datetime.strptime(row['date'], '%Y-%m-%d %H:%M:%S%z')
+                if Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=received_date).exists():
                     transmission_data = {
-                        'received_rate':row['received_rate'],
-                        'received':row['#received'],
-                        'expected':row['#expected'],
+                        'received_rate': row['received_rate'],
+                        'received': row['#received'],
+                        'expected': row['#expected'],
                     }
-                    Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')).update(**transmission_data)
-
+                    Transmission.objects.filter(station=row['wigosid'], variable=row['variable'], received_date=received_date).update(**transmission_data)
                 else:
                     station = Station.objects.get(wigos_id=row['wigosid'])
                     transmissions_to_create.append(Transmission(
@@ -125,14 +137,13 @@ def ingest_transmission_rates(start_date, end_date, variable, periods, centers, 
                         received_rate=row['received_rate'],
                         received=row['#received'],
                         expected=row['#expected'],
-                        received_date=datetime.strptime(row['date'],'%Y-%m-%d %H:%M:%S%z')
+                        received_date=received_date
                     ))
 
             # Bulk create new transmissions
             Transmission.objects.bulk_create(transmissions_to_create, ignore_conflicts=True)
-            
-            print(f"INGEST: Completed ingestion for {date}-{period}")
 
+            print(f"INGEST: Completed ingestion for {date}-{period}")
 
 
 class Command(BaseCommand):
